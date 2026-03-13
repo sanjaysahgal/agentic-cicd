@@ -1,0 +1,109 @@
+name: Post-Deploy Checks
+
+on:
+  workflow_call:
+    inputs:
+      deployment-url:
+        description: 'URL of the deployed app to test against'
+        type: string
+        required: true
+      environment:
+        description: 'Deployment environment (preview or production)'
+        type: string
+        default: 'production'
+      smoke-test-command:
+        description: 'Smoke test command (leave empty to skip)'
+        type: string
+        default: ''
+      lighthouse-enabled:
+        description: 'Run Lighthouse CI'
+        type: boolean
+        default: true
+      lighthouse-budget-path:
+        description: 'Path to Lighthouse budget JSON file'
+        type: string
+        default: '.lighthouserc.json'
+      percy-enabled:
+        description: 'Run Percy visual regression'
+        type: boolean
+        default: false
+      node-version:
+        description: 'Node.js version'
+        type: string
+        default: '20'
+      package-manager:
+        description: 'Package manager'
+        type: string
+        default: 'pnpm'
+    secrets:
+      PERCY_TOKEN:
+        required: false
+
+jobs:
+  smoke-tests:
+    name: Smoke Tests
+    runs-on: ubuntu-latest
+    if: inputs.smoke-test-command != ''
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup pnpm + Node
+        uses: sanjaysahgal/agentic-cicd/actions/setup-pnpm@main
+        with:
+          node-version: ${{ inputs.node-version }}
+          package-manager: ${{ inputs.package-manager }}
+      - name: Run smoke tests
+        env:
+          DEPLOYMENT_URL: ${{ inputs.deployment-url }}
+        run: ${{ inputs.smoke-test-command }}
+
+  lighthouse:
+    name: Lighthouse CI
+    runs-on: ubuntu-latest
+    if: inputs.lighthouse-enabled
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup pnpm + Node
+        uses: sanjaysahgal/agentic-cicd/actions/setup-pnpm@main
+        with:
+          node-version: ${{ inputs.node-version }}
+          package-manager: ${{ inputs.package-manager }}
+      - name: Install Lighthouse CI
+        run: npm install -g @lhci/cli@0.14.x
+      - name: Run Lighthouse CI
+        env:
+          LHCI_TARGET_URL: ${{ inputs.deployment-url }}
+        run: |
+          if [ -f "${{ inputs.lighthouse-budget-path }}" ]; then
+            lhci autorun --config=${{ inputs.lighthouse-budget-path }}
+          else
+            lhci autorun \
+              --collect.url=${{ inputs.deployment-url }} \
+              --assert.preset=lighthouse:recommended \
+              --assert.assertions.categories:performance=["warn",{"minScore":0.8}] \
+              --assert.assertions.categories:accessibility=["error",{"minScore":0.9}] \
+              --assert.assertions.categories:best-practices=["warn",{"minScore":0.9}] \
+              --assert.assertions.categories:seo=["warn",{"minScore":0.9}]
+          fi
+
+  percy:
+    name: Percy Visual Regression
+    runs-on: ubuntu-latest
+    if: inputs.percy-enabled
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup pnpm + Node
+        uses: sanjaysahgal/agentic-cicd/actions/setup-pnpm@main
+        with:
+          node-version: ${{ inputs.node-version }}
+          package-manager: ${{ inputs.package-manager }}
+      - name: Run Percy snapshot
+        env:
+          PERCY_TOKEN: ${{ secrets.PERCY_TOKEN }}
+          DEPLOYMENT_URL: ${{ inputs.deployment-url }}
+        run: |
+          npx percy snapshot --base-url=${{ inputs.deployment-url }} \
+            --snapshot-files='tests/snapshots/**/*.yml' \
+            2>/dev/null || npx percy exec -- pnpm test:snapshots

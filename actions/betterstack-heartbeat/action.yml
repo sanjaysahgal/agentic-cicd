@@ -1,0 +1,21 @@
+name: BetterStack Heartbeat
+description: Pings a BetterStack heartbeat URL to confirm a successful production deploy.
+
+inputs:
+  heartbeat-url:
+    description: 'BetterStack heartbeat URL'
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Ping BetterStack heartbeat
+      shell: bash
+      run: |
+        HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "${{ inputs.heartbeat-url }}")
+        if [ "$HTTP_STATUS" -ge 200 ] && [ "$HTTP_STATUS" -lt 300 ]; then
+          echo "BetterStack heartbeat pinged successfully (HTTP $HTTP_STATUS)"
+        else
+          echo "Warning: BetterStack heartbeat returned HTTP $HTTP_STATUS" >&2
+          exit 0
+        fi

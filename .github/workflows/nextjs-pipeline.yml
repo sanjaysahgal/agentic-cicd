@@ -1,0 +1,117 @@
+name: Next.js CI Pipeline
+
+on:
+  workflow_call:
+    inputs:
+      node-version:
+        description: 'Node.js version'
+        type: string
+        default: '20'
+      package-manager:
+        description: 'Package manager (pnpm or npm)'
+        type: string
+        default: 'pnpm'
+      lint-command:
+        description: 'Lint command'
+        type: string
+        default: 'pnpm lint'
+      typecheck-command:
+        description: 'TypeScript typecheck command'
+        type: string
+        default: 'pnpm typecheck'
+      test-command:
+        description: 'Unit + integration test command'
+        type: string
+        default: 'pnpm test'
+      build-command:
+        description: 'Production build command'
+        type: string
+        default: 'pnpm build'
+      lighthouse-enabled:
+        description: 'Run Lighthouse CI after build'
+        type: boolean
+        default: true
+      percy-enabled:
+        description: 'Run Percy visual regression'
+        type: boolean
+        default: false
+      working-directory:
+        description: 'Working directory for all commands'
+        type: string
+        default: '.'
+    secrets:
+      PERCY_TOKEN:
+        required: false
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup pnpm + Node
+        uses: sanjaysahgal/agentic-cicd/actions/setup-pnpm@main
+        with:
+          node-version: ${{ inputs.node-version }}
+          package-manager: ${{ inputs.package-manager }}
+          working-directory: ${{ inputs.working-directory }}
+      - name: Run lint
+        working-directory: ${{ inputs.working-directory }}
+        run: ${{ inputs.lint-command }}
+
+  typecheck:
+    name: TypeScript
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup pnpm + Node
+        uses: sanjaysahgal/agentic-cicd/actions/setup-pnpm@main
+        with:
+          node-version: ${{ inputs.node-version }}
+          package-manager: ${{ inputs.package-manager }}
+          working-directory: ${{ inputs.working-directory }}
+      - name: Run typecheck
+        working-directory: ${{ inputs.working-directory }}
+        run: ${{ inputs.typecheck-command }}
+
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup pnpm + Node
+        uses: sanjaysahgal/agentic-cicd/actions/setup-pnpm@main
+        with:
+          node-version: ${{ inputs.node-version }}
+          package-manager: ${{ inputs.package-manager }}
+          working-directory: ${{ inputs.working-directory }}
+      - name: Run tests
+        working-directory: ${{ inputs.working-directory }}
+        run: ${{ inputs.test-command }}
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    needs: [lint, typecheck, test]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup pnpm + Node
+        uses: sanjaysahgal/agentic-cicd/actions/setup-pnpm@main
+        with:
+          node-version: ${{ inputs.node-version }}
+          package-manager: ${{ inputs.package-manager }}
+          working-directory: ${{ inputs.working-directory }}
+      - name: Run build
+        working-directory: ${{ inputs.working-directory }}
+        run: ${{ inputs.build-command }}
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-output
+          path: ${{ inputs.working-directory }}/.next
+          retention-days: 1
+          if-no-files-found: ignore

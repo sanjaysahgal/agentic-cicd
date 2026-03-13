@@ -1,0 +1,97 @@
+name: Deploy Vercel Production
+
+on:
+  workflow_call:
+    inputs:
+      node-version:
+        description: 'Node.js version'
+        type: string
+        default: '20'
+      package-manager:
+        description: 'Package manager (pnpm or npm)'
+        type: string
+        default: 'pnpm'
+      working-directory:
+        description: 'Working directory'
+        type: string
+        default: '.'
+      app-name:
+        description: 'App name for Slack notification'
+        type: string
+        required: true
+      notify-slack:
+        description: 'Send Slack notification on deploy'
+        type: boolean
+        default: true
+      betterstack-heartbeat:
+        description: 'Ping BetterStack heartbeat after deploy'
+        type: boolean
+        default: true
+    secrets:
+      VERCEL_TOKEN:
+        required: true
+      VERCEL_ORG_ID:
+        required: false
+      VERCEL_PROJECT_ID:
+        required: false
+      SLACK_WEBHOOK_URL:
+        required: false
+      BETTERSTACK_HEARTBEAT_URL:
+        required: false
+    outputs:
+      production-url:
+        description: 'Vercel production deployment URL'
+        value: ${{ jobs.deploy-production.outputs.production-url }}
+
+jobs:
+  deploy-production:
+    name: Deploy Production
+    runs-on: ubuntu-latest
+    environment: production
+    outputs:
+      production-url: ${{ steps.deploy.outputs.production-url }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup pnpm + Node
+        uses: sanjaysahgal/agentic-cicd/actions/setup-pnpm@main
+        with:
+          node-version: ${{ inputs.node-version }}
+          package-manager: ${{ inputs.package-manager }}
+          working-directory: ${{ inputs.working-directory }}
+      - name: Deploy to Vercel production
+        id: deploy
+        uses: sanjaysahgal/agentic-cicd/actions/deploy-vercel@main
+        with:
+          vercel-token: ${{ secrets.VERCEL_TOKEN }}
+          vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
+          vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
+          environment: production
+          working-directory: ${{ inputs.working-directory }}
+      - name: Notify Slack on success
+        if: ${{ inputs.notify-slack && secrets.SLACK_WEBHOOK_URL != '' }}
+        uses: sanjaysahgal/agentic-cicd/actions/notify-slack@main
+        with:
+          webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
+          status: success
+          message: |
+            *${{ inputs.app-name }}* deployed to production
+            URL: ${{ steps.deploy.outputs.production-url }}
+            Commit: `${{ github.sha }}`
+            Author: ${{ github.actor }}
+      - name: Ping BetterStack heartbeat
+        if: ${{ inputs.betterstack-heartbeat && secrets.BETTERSTACK_HEARTBEAT_URL != '' }}
+        uses: sanjaysahgal/agentic-cicd/actions/betterstack-heartbeat@main
+        with:
+          heartbeat-url: ${{ secrets.BETTERSTACK_HEARTBEAT_URL }}
+      - name: Notify Slack on failure
+        if: failure() && inputs.notify-slack && secrets.SLACK_WEBHOOK_URL != ''
+        uses: sanjaysahgal/agentic-cicd/actions/notify-slack@main
+        with:
+          webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
+          status: failure
+          message: |
+            *${{ inputs.app-name }}* production deploy FAILED
+            Commit: `${{ github.sha }}`
+            Author: ${{ github.actor }}
+            Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}

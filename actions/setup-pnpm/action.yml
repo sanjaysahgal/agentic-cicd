@@ -1,0 +1,45 @@
+name: Setup pnpm + Node
+description: Sets up Node.js and pnpm with dependency cache
+
+inputs:
+  node-version:
+    description: 'Node.js version'
+    required: false
+    default: '20'
+  package-manager:
+    description: 'Package manager: pnpm or npm'
+    required: false
+    default: 'pnpm'
+  pnpm-version:
+    description: 'pnpm version to install'
+    required: false
+    default: '9'
+  working-directory:
+    description: 'Working directory for install'
+    required: false
+    default: '.'
+
+runs:
+  using: composite
+  steps:
+    - name: Setup pnpm
+      if: inputs.package-manager == 'pnpm'
+      uses: pnpm/action-setup@v4
+      with:
+        version: ${{ inputs.pnpm-version }}
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ inputs.node-version }}
+        cache: ${{ inputs.package-manager }}
+        cache-dependency-path: ${{ inputs.working-directory }}/pnpm-lock.yaml
+    - name: Install dependencies (pnpm)
+      if: inputs.package-manager == 'pnpm'
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: pnpm install --frozen-lockfile
+    - name: Install dependencies (npm)
+      if: inputs.package-manager == 'npm'
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: npm ci

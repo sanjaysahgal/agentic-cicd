@@ -1,0 +1,49 @@
+name: Notify Slack
+description: Posts a notification to a Slack channel via incoming webhook.
+
+inputs:
+  webhook-url:
+    description: 'Slack incoming webhook URL'
+    required: true
+  status:
+    description: 'Status: success, failure, or info'
+    required: false
+    default: 'info'
+  message:
+    description: 'Message body (markdown supported in Slack mrkdwn format)'
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Determine color
+      id: color
+      shell: bash
+      run: |
+        case "${{ inputs.status }}" in
+          success) echo "color=#36a64f" >> $GITHUB_OUTPUT ;;
+          failure) echo "color=#ff0000" >> $GITHUB_OUTPUT ;;
+          *)       echo "color=#439fe0" >> $GITHUB_OUTPUT ;;
+        esac
+    - name: Post Slack message
+      shell: bash
+      run: |
+        STATUS_EMOJI=""
+        case "${{ inputs.status }}" in
+          success) STATUS_EMOJI="✅" ;;
+          failure) STATUS_EMOJI="❌" ;;
+          *)       STATUS_EMOJI="ℹ️" ;;
+        esac
+        MESSAGE="${STATUS_EMOJI} ${{ inputs.message }}"
+        curl -s -X POST "${{ inputs.webhook-url }}" \
+          -H "Content-Type: application/json" \
+          -d "{
+            \"attachments\": [
+              {
+                \"color\": \"${{ steps.color.outputs.color }}\",
+                \"text\": $(echo "$MESSAGE" | jq -Rs .),
+                \"footer\": \"agentic-cicd | ${{ github.repository }}\",
+                \"ts\": $(date +%s)
+              }
+            ]
+          }"
