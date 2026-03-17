@@ -69,7 +69,7 @@ jobs:
           environment: production
           working-directory: ${{ inputs.working-directory }}
       - name: Notify Slack on success
-        if: ${{ inputs.notify-slack && secrets.SLACK_WEBHOOK_URL != '' }}
+        if: ${{ inputs.notify-slack }}
         uses: sanjaysahgal/agentic-cicd/actions/notify-slack@main
         with:
           webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
@@ -80,12 +80,12 @@ jobs:
             Commit: `${{ github.sha }}`
             Author: ${{ github.actor }}
       - name: Ping BetterStack heartbeat
-        if: ${{ inputs.betterstack-heartbeat && secrets.BETTERSTACK_HEARTBEAT_URL != '' }}
+        if: ${{ inputs.betterstack-heartbeat }}
         uses: sanjaysahgal/agentic-cicd/actions/betterstack-heartbeat@main
         with:
           heartbeat-url: ${{ secrets.BETTERSTACK_HEARTBEAT_URL }}
       - name: Notify Slack on failure
-        if: failure() && inputs.notify-slack && secrets.SLACK_WEBHOOK_URL != ''
+        if: failure() && inputs.notify-slack
         uses: sanjaysahgal/agentic-cicd/actions/notify-slack@main
         with:
           webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
