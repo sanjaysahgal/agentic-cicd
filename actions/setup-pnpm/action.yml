@@ -10,10 +10,6 @@ inputs:
     description: 'Package manager: pnpm or npm'
     required: false
     default: 'pnpm'
-  pnpm-version:
-    description: 'pnpm version to install'
-    required: false
-    default: '10'
   working-directory:
     description: 'Working directory for install'
     required: false
@@ -25,8 +21,6 @@ runs:
     - name: Setup pnpm
       if: inputs.package-manager == 'pnpm'
       uses: pnpm/action-setup@v4
-      with:
-        version: ${{ inputs.pnpm-version }}
     - name: Setup Node.js
       uses: actions/setup-node@v4
       with:
